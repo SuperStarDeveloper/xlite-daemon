@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - dev-build-linux-amd64
+  pull_request:
+    branches:
+      - dev-build-linux-amd64
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GRAALVM_VERSION: 22.3.0
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'gradle'
+
+    - name: Install GraalVM
+      run: |
+        curl -LJ "https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-$GRAALVM_VERSION/graalvm-ce-java17-linux-amd64-$GRAALVM_VERSION.tar.gz" -o graalvm.tar.gz
+        tar -xzf graalvm.tar.gz
+        ls
+        file graalvm.tar.gz
+        sudo mv graalvm-ce-java17-$GRAALVM_VERSION /usr/local/graalvm
+        echo "GRAALVM_HOME=/usr/local/graalvm" >> $GITHUB_ENV
+        echo "/usr/local/graalvm/bin" >> $GITHUB_PATH
+
+    - name: Grant execute permissions for gradlew
+      run: chmod +x gradlew
+
+    - name: Build with Gradle
+      run: |
+        ./gradlew clean
+        ./gradlew build
+
+    - name: Build Native Image
+      run: |
+        ./gradlew nativeImage
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: native-image-ubuntu-amd64
+        path: build/libs/
